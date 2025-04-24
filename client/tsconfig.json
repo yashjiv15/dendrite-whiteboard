@@ -3,5 +3,11 @@
   "references": [
     { "path": "./tsconfig.app.json" },
     { "path": "./tsconfig.node.json" }
-  ]
+  ],
+  "compilerOptions": {
+    "types": ["node"],
+    "target": "es6", // Example: you can add other compiler options here
+    "module": "esnext", // Example: another common option
+    "jsx": "react" // Example: if you're using React
+  }
 }

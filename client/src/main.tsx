@@ -3,6 +3,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import keycloak from './keycloak';
+import 'bootstrap/dist/css/bootstrap.min.css';
+
 
 keycloak.init({ onLoad: 'login-required' }).then((authenticated) => {
   if (authenticated) {
@@ -10,7 +12,7 @@ keycloak.init({ onLoad: 'login-required' }).then((authenticated) => {
     ReactDOM.createRoot(root).render(
       <React.StrictMode>
         <App />
-      </React.StrictMode>
+      </React.StrictMode> 
     );
   } else {
     window.location.reload();
