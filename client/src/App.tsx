@@ -1,29 +1,34 @@
 // src/App.tsx
-import 'bootstrap/dist/css/bootstrap.min.css';
-
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import SessionLanding from "./features/session/SessionLanding";
-import WhiteboardCanvas from "./features/whiteboard/WhiteboardCanvas";
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import SessionLanding from './features/session/SessionLanding';
+import WhiteboardCanvas from './features/whiteboard/WhiteboardCanvas';
+import AuthForm from './auth/AuthForm';
+import ProtectedRoute from './auth/ProtectedRoute';
 
 function App() {
   return (
-  
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<SessionLanding />} />
-        <Route path="/board/:sessionId" element={<WhiteboardCanvas />} />
-
+        <Route path="/" element={<AuthForm />} />
+        <Route
+          path="/session"
+          element={
+            <ProtectedRoute>
+              <SessionLanding />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/board/:sessionId"
+          element={
+            <ProtectedRoute>
+              <WhiteboardCanvas />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
-      <div className="bg-green-500 text-white p-6 text-2xl">
-    If you see this styled, Tailwind is working!
-  </div>
     </BrowserRouter>
   );
-  
 }
 
-
-
-
 export default App;
-  

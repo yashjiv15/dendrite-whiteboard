@@ -22,3 +22,23 @@ export const sendInvitation = async (email: string, sessionId: string) => {
     alert("Failed to send invite");
   }
 };
+export const createSession = async () => {
+  try {
+    const response = await fetch(`${BASE_URL}/api/create-session`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to create session");
+    }
+
+    const data = await response.json();
+    return data.sessionId; // Return the generated session ID
+  } catch (err) {
+    console.error("Error creating session:", err);
+    alert("Failed to create session");
+  }
+};
