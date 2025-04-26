@@ -14,26 +14,24 @@ interface CursorData {
 export default function WhiteboardCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
+  const userId = useRef(`user-${Math.random().toString(36).substring(2, 10)}`);
+  const sessionId = window.location.pathname.split("/").pop() || "defaultSessionId";
+
   const [color, setColor] = useState<string>(() => localStorage.getItem("color") || "#000000");
   const [brushSize, setBrushSize] = useState<number>(() => Number(localStorage.getItem("brushSize")) || 5);
   const [isEraser, setIsEraser] = useState<boolean>(false);
   const [history, setHistory] = useState<string[]>(() => JSON.parse(localStorage.getItem("history") || "[]"));
   const [redoStack, setRedoStack] = useState<string[]>([]);
-  const [cursors, setCursors] = useState<Map<string, CursorData>>(new Map());
-  const socketRef = useRef<WebSocket | null>(null);
-  const userId = useRef(`user-${Math.random().toString(36).slice(2, 10)}`);
   const [whiteboardId, setWhiteboardId] = useState<number | null>(null);
+  const [cursors, setCursors] = useState<Map<string, CursorData>>(new Map());
 
-  const sessionId = window.location.pathname.split("/").pop() || "defaultSessionId";
-
-  // Check login
   useEffect(() => {
     if (!KeycloakService.isLoggedIn()) {
       KeycloakService.callLogin();
     }
   }, []);
 
-  // Setup WebSocket
   useEffect(() => {
     const socket = new WebSocket("ws://localhost:8081/ws/whiteboard");
     socketRef.current = socket;
@@ -44,7 +42,7 @@ export default function WhiteboardCanvas() {
       const data = JSON.parse(event.data);
       if (data.type === "draw" && fabricRef.current) {
         fabricRef.current.loadFromJSON(data.canvas, () => {
-          fabricRef.current?.renderAll();
+          fabricRef.current?.requestRenderAll(); // <-- fixed here
         });
       } else if (data.type === "cursor") {
         setCursors((prev) => {
@@ -60,68 +58,45 @@ export default function WhiteboardCanvas() {
     };
   }, []);
 
-  // Setup fabric.js canvas
   useEffect(() => {
-    if (!canvasRef.current || fabricRef.current) return;
-
+    if (!canvasRef.current) return;
     const canvas = new fabric.Canvas(canvasRef.current, { isDrawingMode: true });
+    fabricRef.current = canvas;
     canvas.setWidth(1000);
     canvas.setHeight(600);
-    fabricRef.current = canvas;
 
     const brush = new fabric.PencilBrush(canvas);
     brush.color = color;
     brush.width = brushSize;
     canvas.freeDrawingBrush = brush;
 
-    const loadWhiteboardEntry = async () => {
+    const loadWhiteboard = async () => {
       try {
         const response = await getWhiteboardBySessionId(sessionId);
         if (response.ok) {
           const data = await response.json();
-          console.log("Fetched data:", data); // Log the fetched data
           if (data.length > 0) {
             const drawingAssets = data[0].drawing_assets.drawing_assets;
-            console.log("Drawing assets:", drawingAssets); // Log the drawing assets
-            if (fabricRef.current) {
-              fabricRef.current.loadFromJSON(drawingAssets, () => {
-                fabricRef.current?.renderAll();
-              });
-              setWhiteboardId(data[0].white_board_id);
-            } else {
-              console.error("Fabric canvas is not initialized.");
-            }
+            fabricRef.current?.loadFromJSON(drawingAssets, () => {
+              fabricRef.current?.requestRenderAll(); // <-- fixed here too
+            });
+            setWhiteboardId(data[0].white_board_id);
           } else {
-            console.warn("No drawing assets found, clearing canvas.");
-            fabricRef.current?.clear();
             setWhiteboardId(null);
           }
         } else {
           console.error("Failed to load whiteboard:", response.statusText);
-          fabricRef.current?.clear();
         }
       } catch (error) {
         console.error("Error loading whiteboard:", error);
       }
     };
 
-    const createWhiteboardEntry = async () => {
-      try {
-        const initialState = canvas.toJSON();
-        const response = await createWhiteboard(sessionId, initialState);
-        if (response.ok) {
-          const data = await response.json();
-          setWhiteboardId(data.white_board_id);
-        }
-      } catch (error) {
-        console.error("Error creating whiteboard:", error);
-      }
-    };
-
-    const saveState = async () => {
+    const saveCanvas = async () => {
       if (!fabricRef.current) return;
       const json = fabricRef.current.toJSON();
       const jsonStr = JSON.stringify(json);
+
       setHistory((prev) => {
         const updated = [...prev, jsonStr];
         localStorage.setItem("history", JSON.stringify(updated));
@@ -136,17 +111,20 @@ export default function WhiteboardCanvas() {
         } catch (error) {
           console.error("Error updating whiteboard:", error);
         }
+      } else {
+        try {
+          const response = await createWhiteboard(sessionId, json);
+          if (response.ok) {
+            const data = await response.json();
+            setWhiteboardId(data.white_board_id);
+          }
+        } catch (error) {
+          console.error("Error creating whiteboard:", error);
+        }
       }
     };
 
-    canvas.on("path:created", saveState);
-    canvas.on("mouse:up", saveState);
-
-    canvas.on("mouse:down", () => {
-      if (!whiteboardId) {
-        createWhiteboardEntry();
-      }
-    });
+    canvas.on("path:created", saveCanvas);
 
     canvas.on("mouse:move", (opt) => {
       const pointer = canvas.getPointer(opt.e);
@@ -163,19 +141,19 @@ export default function WhiteboardCanvas() {
       }
     });
 
-    loadWhiteboardEntry();
+    loadWhiteboard();
 
     return () => {
       canvas.dispose();
       fabricRef.current = null;
     };
-  }, [color, brushSize, whiteboardId]);
+  }, [sessionId]);
 
-  // Update brush when color or size changes
   useEffect(() => {
     if (fabricRef.current) {
-      fabricRef.current.freeDrawingBrush!.color = isEraser ? "#ffffff" : color;
-      fabricRef.current.freeDrawingBrush!.width = brushSize;
+      const brush = fabricRef.current.freeDrawingBrush as fabric.PencilBrush;
+      brush.color = isEraser ? "#ffffff" : color;
+      brush.width = brushSize;
     }
     localStorage.setItem("color", color);
     localStorage.setItem("brushSize", brushSize.toString());
@@ -187,10 +165,13 @@ export default function WhiteboardCanvas() {
     if (currentState) {
       setHistory(newHistory);
       setRedoStack((prev) => [currentState, ...prev]);
-      if (newHistory.length > 0) {
-        fabricRef.current?.loadFromJSON(newHistory[newHistory.length - 1], () => {
-          fabricRef.current?.renderAll();
+      const lastState = newHistory[newHistory.length - 1];
+      if (lastState) {
+        fabricRef.current?.loadFromJSON(lastState, () => {
+          fabricRef.current?.requestRenderAll();
         });
+      } else {
+        fabricRef.current?.clear();
       }
     }
   };
@@ -202,14 +183,17 @@ export default function WhiteboardCanvas() {
       setRedoStack(newRedoStack);
       setHistory((prev) => [...prev, redoState]);
       fabricRef.current?.loadFromJSON(redoState, () => {
-        fabricRef.current?.renderAll();
+        fabricRef.current?.requestRenderAll();
       });
     }
   };
 
   const saveAsImage = () => {
     if (fabricRef.current) {
-      const dataUrl = fabricRef.current.toDataURL({ format: "png", multiplier: 0 });
+      const dataUrl = fabricRef.current.toDataURL({
+        format: "png",
+        multiplier: 1,
+      });
       const link = document.createElement("a");
       link.href = dataUrl;
       link.download = "whiteboard.png";
@@ -238,7 +222,7 @@ export default function WhiteboardCanvas() {
         <button className="btn btn-secondary" onClick={undo}>
           <FaUndo />
         </button>
-        <button className="btn btn-secondary" onClick ={redo}>
+        <button className="btn btn-secondary" onClick={redo}>
           <FaRedo />
         </button>
         <button className="btn btn-primary" onClick={saveAsImage}>
