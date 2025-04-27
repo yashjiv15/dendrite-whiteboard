@@ -76,12 +76,29 @@ export default function WhiteboardCanvas() {
         if (response.ok) {
           const data = await response.json();
           if (data.length > 0) {
-            const drawingAssets = data[0].drawing_assets.drawing_assets;
-            fabricRef.current?.loadFromJSON(drawingAssets, () => {
-              fabricRef.current?.requestRenderAll(); // <-- fixed here too
-            });
-            setWhiteboardId(data[0].white_board_id);
+            // Find the latest whiteboard by updated_at
+            const latestWhiteboard = data.reduce((latest: { updated_at: string | number | Date; }, current: { updated_at: string | number | Date; }) => {
+              return new Date(current.updated_at) > new Date(latest.updated_at) ? current : latest;
+            }, data[0]);
+    
+            const drawingAssets = latestWhiteboard?.drawing_assets;
+    
+            if (drawingAssets && Object.keys(drawingAssets).length > 0) {
+              fabricRef.current?.loadFromJSON(drawingAssets, () => {
+                fabricRef.current?.requestRenderAll();
+              });
+              console.log("Whiteboard loaded successfully");
+            } else {
+              console.warn("No drawing assets found, initializing empty canvas");
+              fabricRef.current?.clear();
+              fabricRef.current?.requestRenderAll();
+            }
+    
+            setWhiteboardId(latestWhiteboard.white_board_id);
           } else {
+            console.warn("No whiteboard data found for session, initializing empty canvas");
+            fabricRef.current?.clear();
+            fabricRef.current?.requestRenderAll();
             setWhiteboardId(null);
           }
         } else {
@@ -91,6 +108,7 @@ export default function WhiteboardCanvas() {
         console.error("Error loading whiteboard:", error);
       }
     };
+    
 
     const saveCanvas = async () => {
       if (!fabricRef.current) return;
