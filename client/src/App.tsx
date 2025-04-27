@@ -4,6 +4,9 @@ import SessionLanding from './features/session/SessionLanding';
 import WhiteboardCanvas from './features/whiteboard/WhiteboardCanvas';
 import AuthForm from './auth/AuthForm';
 import ProtectedRoute from './auth/ProtectedRoute';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import 'bootstrap-icons/font/bootstrap-icons.css';
+
 
 function App() {
   return (
