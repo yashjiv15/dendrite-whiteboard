@@ -11,7 +11,7 @@ import { swaggerDocs, swaggerUi } from './swagger'; // Import Swagger
 
 dotenv.config();
 
-const PORT = process.env.PORT || 8081;
+const PORT = process.env.PORT || 8088;
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true }); // Create WebSocket server without binding to a port

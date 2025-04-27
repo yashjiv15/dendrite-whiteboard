@@ -33,7 +33,7 @@ export default function WhiteboardCanvas() {
   }, []);
 
   useEffect(() => {
-    const socket = new WebSocket("ws://localhost:8081/ws/whiteboard");
+    const socket = new WebSocket("ws://localhost:8088/ws/whiteboard");
     socketRef.current = socket;
 
     socket.onopen = () => console.log("WebSocket connected");
